@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-06-08T20:34:12.531950",
+  "timestamp": "2025-08-28T19:16:03.737291",
   "features": {
     "symbolic_spaces": {
       "u": {
@@ -89,17 +89,17 @@
     "Error handling needs improvement: ['invalid_task', 'component_failure']"
   ],
   "performance": {
-    "startup_time": 30.03415274620056,
-    "task_processing_speed": 0.49991877206726937,
-    "memory_usage": 724230,
+    "startup_time": 30.033498525619507,
+    "task_processing_speed": 0.49991705601709313,
+    "memory_usage": 1127013,
     "component_responsiveness": {
       "opencog/ecron-task-daemon.py": {
         "startup": 2.0,
-        "termination": 0.0009913444519042969
+        "termination": 0.0010762214660644531
       },
       "agents/admin_agent.py": {
         "startup": 2.0,
-        "termination": 0.0008924007415771484
+        "termination": 0.0011162757873535156
       }
     }
   },

@@ -62,10 +62,15 @@ class SymbolicStateDashboard:
         # Collect recent symbolic mutations
         recent_mutations = self.collect_recent_mutations()
         
-        # System performance metrics (simplified without psutil)
+        # System performance metrics (comprehensive)
         system_perf = {
             "load_average": self.get_load_average(),
             "process_count": self.get_process_count(),
+            "memory_usage": self.get_memory_usage(),
+            "cpu_usage": self.get_cpu_usage(),
+            "disk_usage": self.get_disk_usage(),
+            "network_stats": self.get_network_stats(),
+            "wolfcog_processes": self.get_wolfcog_process_stats(),
             "uptime": self.get_system_uptime()
         }
         
@@ -112,16 +117,157 @@ class SymbolicStateDashboard:
         """Get system load average (Linux only)"""
         try:
             with open('/proc/loadavg', 'r') as f:
-                return f.read().split()[0]
+                load_avg = f.read().split()
+                return {
+                    "1min": float(load_avg[0]),
+                    "5min": float(load_avg[1]),
+                    "15min": float(load_avg[2]),
+                    "processes": load_avg[3]  # running/total processes
+                }
         except:
-            return "0.0"
+            return {"1min": 0.0, "5min": 0.0, "15min": 0.0, "processes": "0/0"}
             
     def get_process_count(self):
         """Get number of running processes"""
         try:
-            return len(os.listdir('/proc')) - len([x for x in os.listdir('/proc') if not x.isdigit()])
+            proc_dirs = [d for d in os.listdir('/proc') if d.isdigit()]
+            return len(proc_dirs)
         except:
             return 0
+    
+    def get_memory_usage(self):
+        """Get system memory usage"""
+        try:
+            with open('/proc/meminfo', 'r') as f:
+                meminfo = {}
+                for line in f:
+                    if line.startswith(('MemTotal:', 'MemFree:', 'MemAvailable:', 'Buffers:', 'Cached:')):
+                        key, value = line.split(':')
+                        meminfo[key] = int(value.strip().split()[0]) * 1024  # Convert KB to bytes
+                
+                total = meminfo.get('MemTotal', 0)
+                available = meminfo.get('MemAvailable', meminfo.get('MemFree', 0))
+                used = total - available
+                
+                return {
+                    "total": total,
+                    "used": used,
+                    "available": available,
+                    "usage_percent": (used / total * 100) if total > 0 else 0
+                }
+        except:
+            return {"total": 0, "used": 0, "available": 0, "usage_percent": 0}
+    
+    def get_cpu_usage(self):
+        """Get CPU usage statistics"""
+        try:
+            with open('/proc/stat', 'r') as f:
+                cpu_line = f.readline()
+                cpu_times = [int(x) for x in cpu_line.split()[1:]]
+                
+                # Calculate CPU usage (simplified)
+                total_time = sum(cpu_times)
+                idle_time = cpu_times[3]  # idle time is 4th field
+                
+                if hasattr(self, '_prev_cpu_total'):
+                    total_delta = total_time - self._prev_cpu_total
+                    idle_delta = idle_time - self._prev_cpu_idle
+                    
+                    if total_delta > 0:
+                        usage_percent = 100 * (1 - idle_delta / total_delta)
+                    else:
+                        usage_percent = 0
+                else:
+                    usage_percent = 0
+                
+                self._prev_cpu_total = total_time
+                self._prev_cpu_idle = idle_time
+                
+                return {
+                    "usage_percent": max(0, min(100, usage_percent)),
+                    "total_time": total_time,
+                    "idle_time": idle_time
+                }
+        except:
+            return {"usage_percent": 0, "total_time": 0, "idle_time": 0}
+    
+    def get_disk_usage(self):
+        """Get disk usage for key paths"""
+        disk_info = {}
+        
+        paths_to_check = ['/', '/tmp', '/home']
+        
+        for path in paths_to_check:
+            try:
+                statvfs = os.statvfs(path)
+                total = statvfs.f_frsize * statvfs.f_blocks
+                free = statvfs.f_frsize * statvfs.f_available
+                used = total - free
+                
+                disk_info[path] = {
+                    "total": total,
+                    "used": used,
+                    "free": free,
+                    "usage_percent": (used / total * 100) if total > 0 else 0
+                }
+            except:
+                disk_info[path] = {"total": 0, "used": 0, "free": 0, "usage_percent": 0}
+        
+        return disk_info
+    
+    def get_network_stats(self):
+        """Get network interface statistics"""
+        try:
+            with open('/proc/net/dev', 'r') as f:
+                lines = f.readlines()[2:]  # Skip header lines
+                
+                net_stats = {}
+                for line in lines:
+                    parts = line.split(':')
+                    if len(parts) == 2:
+                        interface = parts[0].strip()
+                        stats = parts[1].split()
+                        
+                        if len(stats) >= 16:
+                            net_stats[interface] = {
+                                "rx_bytes": int(stats[0]),
+                                "rx_packets": int(stats[1]),
+                                "rx_errors": int(stats[2]),
+                                "tx_bytes": int(stats[8]),
+                                "tx_packets": int(stats[9]),
+                                "tx_errors": int(stats[10])
+                            }
+                
+                return net_stats
+        except:
+            return {}
+    
+    def get_wolfcog_process_stats(self):
+        """Get statistics for WolfCog-specific processes"""
+        wolfcog_processes = {}
+        
+        try:
+            # Use ps to get process info
+            result = subprocess.run(['ps', 'aux'], capture_output=True, text=True)
+            
+            for line in result.stdout.split('\n'):
+                if any(keyword in line for keyword in ['wolfcog', 'ecron', 'admin_agent', 'director_agent']):
+                    parts = line.split()
+                    if len(parts) >= 11:
+                        pid = parts[1]
+                        cpu_percent = parts[2]
+                        mem_percent = parts[3]
+                        command = ' '.join(parts[10:])
+                        
+                        wolfcog_processes[pid] = {
+                            "cpu_percent": float(cpu_percent),
+                            "mem_percent": float(mem_percent),
+                            "command": command
+                        }
+        except:
+            pass
+        
+        return wolfcog_processes
             
     def collect_agent_statistics(self):
         """Collect statistics about running agents"""
@@ -249,7 +395,16 @@ class SymbolicStateDashboard:
         print("🐺 WolfCog Symbolic State Dashboard")
         print("="*60)
         print(f"⏰ Last Update: {self.metrics['timestamp']}")
-        print(f"🔄 System Uptime: {self.metrics['uptime']:.0f} seconds")
+        print("🔄 System Uptime: {:.0f} seconds".format(self.metrics['uptime']))
+        
+        # System Performance
+        perf = self.metrics['system_performance']
+        print("⚡ System Performance:")
+        print(f"  📊 Load Average: {perf['load_average']['1min']:.2f} (1m), {perf['load_average']['5min']:.2f} (5m)")
+        print(f"  🧠 Memory: {perf['memory_usage']['usage_percent']:.1f}% used ({perf['memory_usage']['used']/(1024**3):.1f}GB)")
+        print(f"  💻 CPU: {perf['cpu_usage']['usage_percent']:.1f}% utilization")
+        print(f"  💾 Disk: {perf['disk_usage']['/']['usage_percent']:.1f}% used")
+        print(f"  🐺 WolfCog Processes: {len(perf['wolfcog_processes'])}")
         print()
         
         # Spaces summary

@@ -196,8 +196,229 @@ class SchedulerDaemon:
     
     def coordinate_flows(self):
         """Coordinate flows with other system components"""
-        # Placeholder for coordination with OpenCog, agents, etc.
-        pass
+        try:
+            # Check for coordination signals from other daemons
+            self.process_coordination_signals()
+            
+            # Coordinate with OpenCog AtomSpace
+            self.coordinate_with_cogserver()
+            
+            # Coordinate with agent systems
+            self.coordinate_with_agents()
+            
+            # Coordinate with reflex daemon
+            self.coordinate_with_reflex_daemon()
+            
+        except Exception as e:
+            print(f"❌ Flow coordination error: {e}")
+    
+    def process_coordination_signals(self):
+        """Process coordination signals from other components"""
+        signals_dir = Path("/tmp/wolfcog_signals")
+        if not signals_dir.exists():
+            return
+        
+        for signal_file in signals_dir.glob("signal_*.json"):
+            try:
+                with open(signal_file, 'r') as f:
+                    signal_data = json.load(f)
+                
+                signal_type = signal_data.get("type")
+                
+                if signal_type == "kernel_reload":
+                    self.handle_kernel_reload_signal(signal_data)
+                elif signal_type == "priority_change":
+                    self.handle_priority_change_signal(signal_data)
+                elif signal_type == "flow_optimization":
+                    self.handle_flow_optimization_signal(signal_data)
+                
+                # Remove processed signal
+                signal_file.unlink()
+                
+            except Exception as e:
+                print(f"⚠️ Error processing signal {signal_file}: {e}")
+    
+    def handle_kernel_reload_signal(self, signal_data):
+        """Handle kernel reload signal"""
+        kernel_name = signal_data.get("kernel")
+        print(f"🔄 Handling kernel reload: {kernel_name}")
+        
+        # Pause tasks that depend on this kernel
+        affected_tasks = []
+        for task in self.task_queue:
+            task_data = task.get("data", {})
+            if kernel_name in str(task_data):
+                task["status"] = "paused_for_kernel_reload"
+                affected_tasks.append(task)
+        
+        print(f"⏸️ Paused {len(affected_tasks)} tasks for kernel reload")
+    
+    def handle_priority_change_signal(self, signal_data):
+        """Handle priority change signal"""
+        task_pattern = signal_data.get("task_pattern")
+        new_priority = signal_data.get("priority", 2)
+        
+        updated_count = 0
+        for task in self.task_queue:
+            if task_pattern in str(task.get("data", {})):
+                task["priority"] = new_priority
+                updated_count += 1
+        
+        print(f"⚡ Updated priority for {updated_count} tasks")
+    
+    def handle_flow_optimization_signal(self, signal_data):
+        """Handle flow optimization signal"""
+        optimization_type = signal_data.get("optimization")
+        
+        if optimization_type == "batch_similar":
+            self.batch_similar_tasks()
+        elif optimization_type == "reorder_by_dependency":
+            self.reorder_by_dependencies()
+        
+        print(f"🔧 Applied flow optimization: {optimization_type}")
+    
+    def coordinate_with_cogserver(self):
+        """Coordinate task flows with OpenCog CogServer"""
+        # Check for CogServer command responses
+        cog_commands_dir = Path("/tmp/cogserver_commands")
+        if cog_commands_dir.exists():
+            processed_commands = len(list(cog_commands_dir.glob("*.json")))
+            if processed_commands > 0:
+                print(f"🧠 CogServer coordination: {processed_commands} commands pending")
+        
+        # Send scheduler status to CogServer
+        if len(self.active_flows) > 0:
+            self.send_scheduler_status_to_cog()
+    
+    def send_scheduler_status_to_cog(self):
+        """Send scheduler status to CogServer"""
+        status_data = {
+            "active_flows": len(self.active_flows),
+            "queued_tasks": len(self.task_queue),
+            "timestamp": time.time(),
+            "scheduler_status": "active"
+        }
+        
+        # Create CogServer status command
+        cog_commands_dir = Path("/tmp/cogserver_commands")
+        cog_commands_dir.mkdir(exist_ok=True)
+        
+        status_file = cog_commands_dir / f"scheduler_status_{int(time.time())}.json"
+        with open(status_file, 'w') as f:
+            json.dump(status_data, f, indent=2)
+    
+    def coordinate_with_agents(self):
+        """Coordinate with agent systems"""
+        # Check for agent coordination requests
+        agent_requests_dir = Path("/tmp/agent_requests")
+        if agent_requests_dir.exists():
+            for request_file in agent_requests_dir.glob("*.json"):
+                try:
+                    with open(request_file, 'r') as f:
+                        request_data = json.load(f)
+                    
+                    self.handle_agent_request(request_data)
+                    request_file.unlink()
+                    
+                except Exception as e:
+                    print(f"⚠️ Error processing agent request: {e}")
+    
+    def handle_agent_request(self, request_data):
+        """Handle coordination request from agents"""
+        request_type = request_data.get("type")
+        
+        if request_type == "task_priority_boost":
+            task_pattern = request_data.get("task_pattern")
+            self.boost_task_priority(task_pattern)
+        elif request_type == "schedule_optimization":
+            optimization_params = request_data.get("params", {})
+            self.apply_scheduling_optimization(optimization_params)
+        elif request_type == "flow_analysis":
+            self.provide_flow_analysis_to_agent(request_data.get("agent_id"))
+    
+    def boost_task_priority(self, task_pattern):
+        """Boost priority of tasks matching pattern"""
+        boosted_count = 0
+        for task in self.task_queue:
+            if task_pattern in str(task.get("data", {})):
+                task["priority"] = max(1, task["priority"] - 1)
+                boosted_count += 1
+        
+        print(f"⚡ Boosted priority for {boosted_count} tasks")
+    
+    def apply_scheduling_optimization(self, params):
+        """Apply scheduling optimization based on agent recommendations"""
+        optimization_type = params.get("type", "default")
+        
+        if optimization_type == "load_balance":
+            self.balance_task_load()
+        elif optimization_type == "minimize_latency":
+            self.minimize_task_latency()
+        elif optimization_type == "maximize_throughput":
+            self.maximize_task_throughput()
+    
+    def balance_task_load(self):
+        """Balance task load across different execution contexts"""
+        # Group tasks by space
+        space_groups = {'u': [], 'e': [], 's': []}
+        
+        for task in self.task_queue:
+            space = task.get("data", {}).get("space", "e")
+            if space in space_groups:
+                space_groups[space].append(task)
+        
+        # Rebalance if one space is overloaded
+        max_space = max(space_groups.keys(), key=lambda k: len(space_groups[k]))
+        min_space = min(space_groups.keys(), key=lambda k: len(space_groups[k]))
+        
+        if len(space_groups[max_space]) > len(space_groups[min_space]) + 3:
+            # Move some tasks to balance load
+            tasks_to_move = space_groups[max_space][:2]
+            for task in tasks_to_move:
+                task["data"]["space"] = min_space
+            
+            print(f"⚖️ Balanced load: moved 2 tasks from {max_space} to {min_space}")
+    
+    def coordinate_with_reflex_daemon(self):
+        """Coordinate with reflex daemon"""
+        # Check for reflex notifications
+        notifications_dir = Path("/tmp/scheduler_notifications")
+        if notifications_dir.exists():
+            for notification_file in notifications_dir.glob("notify_*.json"):
+                try:
+                    with open(notification_file, 'r') as f:
+                        notification_data = json.load(f)
+                    
+                    self.handle_reflex_notification(notification_data)
+                    notification_file.unlink()
+                    
+                except Exception as e:
+                    print(f"⚠️ Error processing reflex notification: {e}")
+    
+    def handle_reflex_notification(self, notification_data):
+        """Handle notification from reflex daemon"""
+        notification_type = notification_data.get("type")
+        
+        if notification_type == "new_task":
+            task_path = notification_data.get("task_path")
+            priority = notification_data.get("priority", "normal")
+            
+            print(f"📨 Reflex daemon reports new task: {task_path} ({priority} priority)")
+            
+            # Adjust scheduling based on reflex priority
+            if priority == "high":
+                self.expedite_task_processing(task_path)
+    
+    def expedite_task_processing(self, task_path):
+        """Expedite processing of a specific task"""
+        task_name = Path(task_path).name
+        
+        # Find matching tasks in queue and boost priority
+        for task in self.task_queue:
+            if task_name in str(task.get("data", {})):
+                task["priority"] = 1  # Highest priority
+                print(f"⚡ Expedited task: {task_name}")
+                break
     
     def manage_priorities(self):
         """Manage task priorities and dependencies"""
@@ -226,8 +447,67 @@ class SchedulerDaemon:
     
     def resolve_dependencies(self):
         """Resolve task dependencies"""
-        # Placeholder for dependency resolution
-        pass
+        deps_file = Path("/tmp/ecron_tasks/dependencies.json")
+        
+        if not deps_file.exists():
+            return
+        
+        try:
+            with open(deps_file, 'r') as f:
+                dependencies = json.load(f)
+            
+            # Process dependency chains
+            for chain in dependencies.get("chains", []):
+                self.process_dependency_chain(chain)
+            
+            # Process prerequisites
+            prerequisites = dependencies.get("prerequisites", {})
+            self.process_task_prerequisites(prerequisites)
+            
+        except Exception as e:
+            print(f"❌ Dependency resolution error: {e}")
+    
+    def process_dependency_chain(self, chain):
+        """Process a dependency chain"""
+        chain_order = chain.get("order", [])
+        
+        if len(chain_order) < 2:
+            return
+        
+        # Ensure tasks execute in dependency order
+        for i in range(len(chain_order) - 1):
+            current_stage = chain_order[i]
+            next_stage = chain_order[i + 1]
+            
+            # Find tasks in current and next stages
+            current_tasks = [t for t in self.task_queue if current_stage in str(t.get("data", {}))]
+            next_tasks = [t for t in self.task_queue if next_stage in str(t.get("data", {}))]
+            
+            # Set dependencies
+            for next_task in next_tasks:
+                next_task["depends_on"] = current_stage
+                next_task["priority"] += 1  # Lower priority until dependency met
+        
+        print(f"🔗 Processed dependency chain: {' → '.join(chain_order)}")
+    
+    def process_task_prerequisites(self, prerequisites):
+        """Process task prerequisites"""
+        for task_name, prereq_info in prerequisites.items():
+            must_complete_before = prereq_info.get("must_complete_before")
+            
+            # Find prerequisite and dependent tasks
+            prereq_tasks = [t for t in self.task_queue if task_name in str(t.get("data", {}))]
+            dependent_tasks = [t for t in self.task_queue if must_complete_before in str(t.get("data", {}))]
+            
+            # Adjust priorities
+            for prereq_task in prereq_tasks:
+                prereq_task["priority"] = 1  # Highest priority
+            
+            for dependent_task in dependent_tasks:
+                dependent_task["priority"] += 2  # Lower priority
+                dependent_task["depends_on"] = task_name
+        
+        print(f"📋 Processed {len(prerequisites)} task prerequisites")
     
     def get_status(self):
         """Get scheduler daemon status"""

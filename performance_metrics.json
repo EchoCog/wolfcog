@@ -1,21 +1,21 @@
 {
   "system": {
-    "timestamp": "2025-06-08T20:34:55.722929",
+    "timestamp": "2025-08-28T19:16:46.923402",
     "load_avg": [
-      0.07,
-      0.07,
-      0.06
+      0.2,
+      0.16,
+      0.07
     ],
-    "uptime": 909.6,
+    "uptime": 1873.63,
     "memory": {
-      "total": 16772685824,
-      "used": 1311055872,
-      "available": 15461629952,
-      "percent": 7.816612591192837
+      "total": 16772579328,
+      "used": 1562181632,
+      "available": 15210397696,
+      "percent": 9.313902181950676
     }
   },
   "wolfcog": {
-    "uptime": 0.022160053253173828,
+    "uptime": 0.023264169692993164,
     "tasks": {
       "pending": 0,
       "processed": 3,
@@ -26,17 +26,17 @@
       "u": {
         "files": 3,
         "total_size": 1958,
-        "last_modified": 1749414533.7754066
+        "last_modified": 1756406788.1932547
       },
       "e": {
         "files": 3,
         "total_size": 2329,
-        "last_modified": 1749414533.7754066
+        "last_modified": 1756406788.1932547
       },
       "s": {
         "files": 3,
         "total_size": 2525,
-        "last_modified": 1749414533.7754066
+        "last_modified": 1756406788.1932547
       }
     },
     "components": {
