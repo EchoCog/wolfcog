@@ -11,7 +11,27 @@ import time
 import json
 import socket
 import threading
+import sys
 from pathlib import Path
+
+# Import security validation
+try:
+    sys.path.append(str(Path(__file__).parent.parent / 'security'))
+    from input_validation import validate_input, wolfcog_validator
+    SECURITY_ENABLED = True
+    print("🛡️ Security validation enabled")
+except ImportError:
+    print("⚠️ Security validation not available, using basic validation")
+    SECURITY_ENABLED = False
+    
+    def validate_input(data, input_type):
+        return True, [], data
+    
+    class MockValidator:
+        def check_rate_limit(self, *args):
+            return True
+    
+    wolfcog_validator = MockValidator()
 
 class EcronTaskDaemon:
     def __init__(self, ecron_path="/tmp/ecron_tasks", cog_host="localhost", cog_port=17001):
@@ -95,41 +115,60 @@ class EcronTaskDaemon:
             self.archive_invalid_task(task_file, f"Processing error: {e}")
     
     def validate_task_spec(self, task_spec):
-        """Validate task specification format and content"""
-        required_fields = ['flow', 'space', 'action']
-        
-        # Check required fields
-        for field in required_fields:
-            if field not in task_spec:
-                print(f"❌ Missing required field: {field}")
-                return False
-        
-        # Validate space
-        valid_spaces = ['u', 'e', 's']
-        if task_spec['space'] not in valid_spaces:
-            print(f"❌ Invalid space: {task_spec['space']}. Must be one of {valid_spaces}")
+        """Validate task specification format and content with security checks"""
+        try:
+            if SECURITY_ENABLED:
+                # Use comprehensive security validation
+                is_valid, errors, sanitized_spec = validate_input(task_spec, "task_spec")
+                
+                if not is_valid:
+                    for error in errors:
+                        print(f"❌ Security validation failed: {error}")
+                    return False
+                
+                # Check rate limiting
+                if not wolfcog_validator.check_rate_limit("task_processing", sanitized_spec.get('flow', 'default')):
+                    print(f"❌ Rate limit exceeded for task processing")
+                    return False
+                
+                # Validate symbolic expression if present
+                if 'symbolic' in sanitized_spec:
+                    symbolic_valid, symbolic_errors, _ = validate_input(
+                        sanitized_spec['symbolic'], "symbolic_expression"
+                    )
+                    if not symbolic_valid:
+                        for error in symbolic_errors:
+                            print(f"❌ Symbolic validation failed: {error}")
+                        return False
+                
+                print(f"✅ Task specification passed security validation")
+            else:
+                # Fallback to basic validation
+                required_fields = ['flow', 'space', 'action']
+                
+                # Check required fields
+                for field in required_fields:
+                    if field not in task_spec:
+                        print(f"❌ Missing required field: {field}")
+                        return False
+                
+                # Validate space
+                valid_spaces = ['u', 'e', 's']
+                if task_spec['space'] not in valid_spaces:
+                    print(f"❌ Invalid space: {task_spec['space']}. Must be one of {valid_spaces}")
+                    return False
+                
+                # Validate action
+                valid_actions = ['evaluate', 'evolve', 'optimize', 'test', 'meta_evolve']
+                if task_spec['action'] not in valid_actions:
+                    print(f"❌ Invalid action: {task_spec['action']}. Must be one of {valid_actions}")
+                    return False
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Validation error: {e}")
             return False
-        
-        # Validate flow name
-        flow = task_spec['flow']
-        if not isinstance(flow, str) or len(flow) == 0:
-            print(f"❌ Invalid flow name: {flow}")
-            return False
-        
-        # Validate action
-        valid_actions = ['evaluate', 'evolve', 'optimize', 'test', 'meta_evolve']
-        if task_spec['action'] not in valid_actions:
-            print(f"❌ Invalid action: {task_spec['action']}. Must be one of {valid_actions}")
-            return False
-        
-        # Validate symbolic expression if present
-        if 'symbolic' in task_spec:
-            symbolic = task_spec['symbolic']
-            if not isinstance(symbolic, str):
-                print(f"❌ Invalid symbolic expression type: {type(symbolic)}")
-                return False
-        
-        return True
     
     def archive_invalid_task(self, task_file, reason):
         """Archive invalid task with error information"""
