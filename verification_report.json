@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-06-08T20:34:12.531950",
+  "timestamp": "2025-08-28T18:47:53.867470",
   "features": {
     "symbolic_spaces": {
       "u": {
@@ -52,8 +52,8 @@
       },
       "Reflex Daemon": {
         "exists": true,
-        "startable": true,
-        "dependencies_met": true
+        "startable": false,
+        "dependencies_met": false
       },
       "Dashboard Daemon": {
         "exists": true,
@@ -84,22 +84,23 @@
   },
   "issues": [],
   "improvements": [
+    "Missing dependency for Reflex Daemon: watchdog",
     "Slow system startup (>15s)",
     "Slow task processing (<1 task/sec)",
     "Error handling needs improvement: ['invalid_task', 'component_failure']"
   ],
   "performance": {
-    "startup_time": 30.03415274620056,
-    "task_processing_speed": 0.49991877206726937,
-    "memory_usage": 724230,
+    "startup_time": 30.034476280212402,
+    "task_processing_speed": 0.49991761611550833,
+    "memory_usage": 838296,
     "component_responsiveness": {
       "opencog/ecron-task-daemon.py": {
         "startup": 2.0,
-        "termination": 0.0009913444519042969
+        "termination": 0.0009407997131347656
       },
       "agents/admin_agent.py": {
         "startup": 2.0,
-        "termination": 0.0008924007415771484
+        "termination": 0.0011112689971923828
       }
     }
   },
