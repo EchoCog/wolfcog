@@ -249,27 +249,402 @@ class ReflexDaemon:
     def reload_kernel(self, kernel_path):
         """Reload a modified kernel"""
         print(f"🔄 Reloading kernel: {kernel_path}")
-        # Placeholder for kernel reload logic
+        
+        try:
+            kernel_name = Path(kernel_path).stem
+            
+            # Determine kernel type and reload strategy
+            if kernel_path.endswith('.lisp'):
+                self.reload_lisp_kernel(kernel_path, kernel_name)
+            elif kernel_path.endswith('.scm'):
+                self.reload_guile_kernel(kernel_path, kernel_name)
+            elif kernel_path.endswith('.wl'):
+                self.reload_wolfram_kernel(kernel_path, kernel_name)
+            elif kernel_path.endswith('.py'):
+                self.reload_python_kernel(kernel_path, kernel_name)
+            else:
+                print(f"⚠️ Unknown kernel type: {kernel_path}")
+                
+        except Exception as e:
+            print(f"❌ Kernel reload error: {e}")
+    
+    def reload_lisp_kernel(self, kernel_path, kernel_name):
+        """Reload a Lisp kernel"""
+        # Signal other components about kernel reload
+        reload_signal = {
+            "type": "kernel_reload",
+            "kernel": kernel_name,
+            "path": kernel_path,
+            "language": "lisp",
+            "timestamp": time.time()
+        }
+        
+        self.broadcast_signal(reload_signal)
+        print(f"🔄 Lisp kernel {kernel_name} reload signaled")
+    
+    def reload_guile_kernel(self, kernel_path, kernel_name):
+        """Reload a Guile/Scheme kernel"""
+        # Send reload command to Guile processes
+        reload_signal = {
+            "type": "kernel_reload", 
+            "kernel": kernel_name,
+            "path": kernel_path,
+            "language": "guile",
+            "timestamp": time.time()
+        }
+        
+        self.broadcast_signal(reload_signal)
+        print(f"🔄 Guile kernel {kernel_name} reload signaled")
+    
+    def reload_wolfram_kernel(self, kernel_path, kernel_name):
+        """Reload a Wolfram Language kernel"""
+        # Signal Wolfram kernel reload
+        reload_signal = {
+            "type": "kernel_reload",
+            "kernel": kernel_name, 
+            "path": kernel_path,
+            "language": "wolfram",
+            "timestamp": time.time()
+        }
+        
+        self.broadcast_signal(reload_signal)
+        print(f"🔄 Wolfram kernel {kernel_name} reload signaled")
+    
+    def reload_python_kernel(self, kernel_path, kernel_name):
+        """Reload a Python kernel/module"""
+        try:
+            # Attempt to reload Python module if it's importable
+            import importlib
+            import sys
+            
+            # Convert path to module name
+            module_name = kernel_name.replace('-', '_')
+            
+            if module_name in sys.modules:
+                importlib.reload(sys.modules[module_name])
+                print(f"🔄 Python module {module_name} reloaded")
+            else:
+                print(f"🔄 Python module {module_name} not currently loaded")
+                
+        except Exception as e:
+            print(f"⚠️ Python module reload failed: {e}")
+    
+    def broadcast_signal(self, signal):
+        """Broadcast reload signal to system components"""
+        signals_dir = Path("/tmp/wolfcog_signals")
+        signals_dir.mkdir(exist_ok=True)
+        
+        signal_file = signals_dir / f"signal_{int(time.time())}_{signal['type']}.json"
+        with open(signal_file, 'w') as f:
+            json.dump(signal, f, indent=2)
+        
+        print(f"📡 Signal broadcasted: {signal['type']}")
     
     def index_memory(self, memory_path):
         """Index new memory structure"""
         print(f"📚 Indexing memory: {memory_path}")
-        # Placeholder for memory indexing
+        
+        try:
+            memory_file = Path(memory_path)
+            
+            if not memory_file.exists():
+                print(f"⚠️ Memory file not found: {memory_path}")
+                return
+            
+            # Determine memory space
+            space = self.determine_memory_space(memory_path)
+            
+            # Create memory index entry
+            index_entry = {
+                "path": str(memory_path),
+                "space": space,
+                "indexed_at": time.time(),
+                "file_size": memory_file.stat().st_size,
+                "file_hash": self.calculate_file_hash(memory_path),
+                "content_type": self.detect_content_type(memory_file)
+            }
+            
+            # Add semantic analysis
+            if memory_file.suffix in ['.txt', '.json', '.scm', '.lisp']:
+                index_entry["semantic_tags"] = self.extract_semantic_tags(memory_file)
+            
+            # Save to memory index
+            self.save_to_memory_index(space, index_entry)
+            
+            print(f"📊 Memory indexed: {space}/{memory_file.name}")
+            
+        except Exception as e:
+            print(f"❌ Memory indexing error: {e}")
+    
+    def determine_memory_space(self, memory_path):
+        """Determine which memory space a file belongs to"""
+        if "/u/" in memory_path or memory_path.startswith("spaces/u"):
+            return "u"
+        elif "/e/" in memory_path or memory_path.startswith("spaces/e"):
+            return "e" 
+        elif "/s/" in memory_path or memory_path.startswith("spaces/s"):
+            return "s"
+        else:
+            return "unknown"
+    
+    def detect_content_type(self, file_path):
+        """Detect content type of memory file"""
+        suffix = file_path.suffix.lower()
+        
+        type_map = {
+            '.json': 'structured_data',
+            '.txt': 'text',
+            '.scm': 'scheme_code',
+            '.lisp': 'lisp_code', 
+            '.wl': 'wolfram_code',
+            '.py': 'python_code',
+            '.md': 'markdown',
+            '.log': 'log_data'
+        }
+        
+        return type_map.get(suffix, 'unknown')
+    
+    def extract_semantic_tags(self, file_path):
+        """Extract semantic tags from file content"""
+        tags = []
+        
+        try:
+            with open(file_path, 'r') as f:
+                content = f.read()
+            
+            # Look for symbolic expressions
+            symbolic_patterns = ['∇', '∂', '⊗', 'Φ', 'Ω', '∑']
+            for pattern in symbolic_patterns:
+                if pattern in content:
+                    tags.append(f"symbolic_{pattern}")
+            
+            # Look for cognitive keywords
+            cognitive_keywords = ['cognitive', 'symbolic', 'memory', 'evolution', 'meta', 'recursive']
+            for keyword in cognitive_keywords:
+                if keyword.lower() in content.lower():
+                    tags.append(f"concept_{keyword}")
+            
+            # Detect code patterns
+            if any(pattern in content for pattern in ['def ', 'define ', 'function']):
+                tags.append("code_definitions")
+            
+            if any(pattern in content for pattern in ['import', 'require', 'use-modules']):
+                tags.append("code_imports")
+                
+        except Exception:
+            pass
+        
+        return tags
+    
+    def save_to_memory_index(self, space, index_entry):
+        """Save index entry to memory index"""
+        index_dir = Path(f"/tmp/wolfcog_memory_index/{space}")
+        index_dir.mkdir(parents=True, exist_ok=True)
+        
+        index_file = index_dir / "index.json"
+        
+        # Load existing index
+        index_data = []
+        if index_file.exists():
+            try:
+                with open(index_file, 'r') as f:
+                    index_data = json.load(f)
+            except:
+                pass
+        
+        # Add new entry
+        index_data.append(index_entry)
+        
+        # Keep only last 1000 entries
+        if len(index_data) > 1000:
+            index_data = index_data[-1000:]
+        
+        # Save updated index
+        with open(index_file, 'w') as f:
+            json.dump(index_data, f, indent=2)
     
     def update_memory(self, memory_path):
         """Update existing memory structure"""
         print(f"🔄 Updating memory: {memory_path}")
-        # Placeholder for memory update
+        
+        try:
+            memory_file = Path(memory_path)
+            
+            if not memory_file.exists():
+                print(f"⚠️ Memory file not found: {memory_path}")
+                return
+            
+            # Find existing index entry
+            space = self.determine_memory_space(memory_path)
+            existing_entry = self.find_memory_index_entry(space, memory_path)
+            
+            if existing_entry:
+                # Update existing entry
+                existing_entry["last_updated"] = time.time()
+                existing_entry["file_size"] = memory_file.stat().st_size
+                existing_entry["file_hash"] = self.calculate_file_hash(memory_path)
+                
+                # Check for content changes
+                if existing_entry["file_hash"] != existing_entry.get("previous_hash"):
+                    existing_entry["change_detected"] = True
+                    existing_entry["change_count"] = existing_entry.get("change_count", 0) + 1
+                    existing_entry["previous_hash"] = existing_entry["file_hash"]
+                
+                self.update_memory_index_entry(space, existing_entry)
+                print(f"📊 Memory updated: {space}/{memory_file.name}")
+            else:
+                # Create new index entry if not found
+                print(f"📝 Memory not indexed, creating new entry")
+                self.index_memory(memory_path)
+                
+        except Exception as e:
+            print(f"❌ Memory update error: {e}")
+    
+    def find_memory_index_entry(self, space, memory_path):
+        """Find existing memory index entry"""
+        index_file = Path(f"/tmp/wolfcog_memory_index/{space}/index.json")
+        
+        if not index_file.exists():
+            return None
+        
+        try:
+            with open(index_file, 'r') as f:
+                index_data = json.load(f)
+            
+            for entry in index_data:
+                if entry.get("path") == str(memory_path):
+                    return entry
+                    
+        except Exception:
+            pass
+        
+        return None
+    
+    def update_memory_index_entry(self, space, updated_entry):
+        """Update an existing memory index entry"""
+        index_file = Path(f"/tmp/wolfcog_memory_index/{space}/index.json")
+        
+        try:
+            with open(index_file, 'r') as f:
+                index_data = json.load(f)
+            
+            # Find and update entry
+            for i, entry in enumerate(index_data):
+                if entry.get("path") == updated_entry.get("path"):
+                    index_data[i] = updated_entry
+                    break
+            
+            # Save updated index
+            with open(index_file, 'w') as f:
+                json.dump(index_data, f, indent=2)
+                
+        except Exception as e:
+            print(f"❌ Error updating memory index: {e}")
     
     def notify_scheduler(self, task_path):
         """Notify scheduler of new task"""
         print(f"📨 Notifying scheduler: {task_path}")
-        # Placeholder for scheduler notification
+        
+        try:
+            task_file = Path(task_path)
+            
+            if not task_file.exists():
+                print(f"⚠️ Task file not found: {task_path}")
+                return
+            
+            # Create scheduler notification
+            notification = {
+                "type": "new_task",
+                "task_path": str(task_path),
+                "timestamp": time.time(),
+                "source": "reflex_daemon",
+                "priority": self.calculate_task_priority_from_path(task_path)
+            }
+            
+            # Try to read task details
+            try:
+                with open(task_file, 'r') as f:
+                    task_data = json.load(f)
+                notification["task_summary"] = {
+                    "flow": task_data.get("flow", "unknown"),
+                    "space": task_data.get("space", "e"),
+                    "action": task_data.get("action", "evaluate")
+                }
+            except:
+                notification["task_summary"] = {"status": "unreadable"}
+            
+            # Send notification to scheduler
+            notifications_dir = Path("/tmp/scheduler_notifications")
+            notifications_dir.mkdir(exist_ok=True)
+            
+            notification_file = notifications_dir / f"notify_{int(time.time())}.json"
+            with open(notification_file, 'w') as f:
+                json.dump(notification, f, indent=2)
+            
+            print(f"📧 Scheduler notification sent: {notification['priority']} priority")
+            
+        except Exception as e:
+            print(f"❌ Scheduler notification error: {e}")
+    
+    def calculate_task_priority_from_path(self, task_path):
+        """Calculate task priority based on file path and name"""
+        if "critical" in str(task_path).lower():
+            return "high"
+        elif "system" in str(task_path).lower() or "/s/" in str(task_path):
+            return "high"
+        elif "optimize" in str(task_path).lower() or "evolve" in str(task_path).lower():
+            return "medium"
+        else:
+            return "normal"
     
     def restart_agent(self, agent_path):
         """Restart modified agent"""
         print(f"🔄 Restarting agent: {agent_path}")
-        # Placeholder for agent restart
+        
+        try:
+            agent_file = Path(agent_path)
+            agent_name = agent_file.stem
+            
+            # Create restart command
+            restart_command = {
+                "type": "agent_restart",
+                "agent_name": agent_name,
+                "agent_path": str(agent_path),
+                "timestamp": time.time(),
+                "reason": "file_modification"
+            }
+            
+            # Check if agent is currently running
+            if self.is_agent_running(agent_name):
+                restart_command["was_running"] = True
+                restart_command["action"] = "restart"
+                print(f"🔄 Agent {agent_name} is running, scheduling restart")
+            else:
+                restart_command["was_running"] = False
+                restart_command["action"] = "start"
+                print(f"▶️ Agent {agent_name} not running, scheduling start")
+            
+            # Send restart command to coordinator
+            commands_dir = Path("/tmp/coordinator_commands")
+            commands_dir.mkdir(exist_ok=True)
+            
+            command_file = commands_dir / f"restart_{agent_name}_{int(time.time())}.json"
+            with open(command_file, 'w') as f:
+                json.dump(restart_command, f, indent=2)
+            
+            print(f"📋 Agent restart command queued: {agent_name}")
+            
+        except Exception as e:
+            print(f"❌ Agent restart error: {e}")
+    
+    def is_agent_running(self, agent_name):
+        """Check if an agent is currently running"""
+        try:
+            import subprocess
+            result = subprocess.run(['ps', 'aux'], capture_output=True, text=True)
+            return f"{agent_name}.py" in result.stdout
+        except:
+            return False
     
     def monitor_symbolic_changes(self):
         """Monitor symbolic changes in the system"""

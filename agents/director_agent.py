@@ -9,6 +9,7 @@ Implements Prolog-style logical reasoning for system coordination
 import json
 import time
 import threading
+import hashlib
 from pathlib import Path
 
 class DirectorAgent:
@@ -197,17 +198,301 @@ class DirectorAgent:
     def coordinate_space_optimization(self, space):
         """Coordinate space optimization"""
         print(f"🔧 Coordinating optimization for space: {space}")
-        # Placeholder for coordination logic
+        
+        try:
+            space_path = Path(f"spaces/{space}")
+            if not space_path.exists():
+                print(f"⚠️ Space {space} does not exist")
+                return
+            
+            # Analyze space efficiency
+            files = list(space_path.glob("*"))
+            file_sizes = [f.stat().st_size for f in files if f.is_file()]
+            
+            if not file_sizes:
+                print(f"📁 Space {space} is empty, no optimization needed")
+                return
+            
+            avg_size = sum(file_sizes) / len(file_sizes)
+            small_files = [f for f in files if f.is_file() and f.stat().st_size < avg_size * 0.1]
+            
+            # Optimization strategies
+            if len(small_files) > 10:
+                print(f"🗂️ Consolidating {len(small_files)} small files in space {space}")
+                self.consolidate_small_files(space, small_files)
+            
+            # Check for duplicate content
+            self.deduplicate_space_content(space_path)
+            
+            # Organize by semantic similarity (simplified)
+            self.organize_by_pattern(space_path)
+            
+            print(f"✅ Space {space} optimization completed")
+            
+        except Exception as e:
+            print(f"❌ Space optimization error: {e}")
+    
+    def consolidate_small_files(self, space, small_files):
+        """Consolidate small files into larger chunks"""
+        consolidated_dir = Path(f"spaces/{space}/consolidated")
+        consolidated_dir.mkdir(exist_ok=True)
+        
+        batch_size = 5
+        for i in range(0, len(small_files), batch_size):
+            batch = small_files[i:i+batch_size]
+            consolidated_file = consolidated_dir / f"batch_{i//batch_size}.txt"
+            
+            with open(consolidated_file, 'w') as outfile:
+                for file_path in batch:
+                    if file_path.is_file():
+                        outfile.write(f"=== {file_path.name} ===\n")
+                        try:
+                            with open(file_path, 'r') as infile:
+                                outfile.write(infile.read())
+                        except:
+                            outfile.write(f"[Binary file: {file_path.name}]\n")
+                        outfile.write("\n\n")
+                        
+                        # Remove original file
+                        file_path.unlink()
+        
+        print(f"📦 Consolidated {len(small_files)} files into {len(range(0, len(small_files), batch_size))} batches")
+    
+    def deduplicate_space_content(self, space_path):
+        """Remove duplicate files based on content hash"""
+        file_hashes = {}
+        duplicates = []
+        
+        for file_path in space_path.rglob("*"):
+            if file_path.is_file():
+                try:
+                    with open(file_path, 'rb') as f:
+                        file_hash = hashlib.md5(f.read()).hexdigest()
+                    
+                    if file_hash in file_hashes:
+                        duplicates.append(file_path)
+                    else:
+                        file_hashes[file_hash] = file_path
+                except:
+                    continue
+        
+        for dup_file in duplicates:
+            dup_file.unlink()
+            print(f"🗑️ Removed duplicate: {dup_file}")
+        
+        if duplicates:
+            print(f"✨ Removed {len(duplicates)} duplicate files")
+    
+    def organize_by_pattern(self, space_path):
+        """Organize files by naming patterns and content types"""
+        patterns = {
+            'symbolic': r'.*[∇∂⊗Φ].*',
+            'numeric': r'.*\d+.*',
+            'temporal': r'.*time.*|.*[0-9]{4}[0-9]{2}[0-9]{2}.*',
+            'config': r'.*\.json$|.*\.yaml$|.*\.conf$'
+        }
+        
+        import re
+        
+        for pattern_name, pattern_regex in patterns.items():
+            pattern_dir = space_path / pattern_name
+            
+            matching_files = []
+            for file_path in space_path.glob("*"):
+                if file_path.is_file() and re.match(pattern_regex, file_path.name):
+                    matching_files.append(file_path)
+            
+            if matching_files:
+                pattern_dir.mkdir(exist_ok=True)
+                for file_path in matching_files:
+                    dest_path = pattern_dir / file_path.name
+                    if not dest_path.exists():
+                        file_path.rename(dest_path)
+                
+                print(f"📂 Organized {len(matching_files)} files into {pattern_name} category")
     
     def coordinate_task_redistribution(self, agent):
         """Coordinate task redistribution"""
         print(f"🔄 Coordinating task redistribution for agent: {agent}")
-        # Placeholder for redistribution logic
+        
+        try:
+            # Assess current task load
+            task_path = Path("/tmp/ecron_tasks")
+            if not task_path.exists():
+                print("📁 No task queue found")
+                return
+            
+            pending_tasks = list(task_path.glob("*.json"))
+            
+            if len(pending_tasks) <= 5:
+                print("⚖️ Task load is manageable, no redistribution needed")
+                return
+            
+            print(f"📊 Found {len(pending_tasks)} pending tasks, redistributing...")
+            
+            # Categorize tasks by priority and space
+            task_categories = {'u': [], 'e': [], 's': [], 'unknown': []}
+            
+            for task_file in pending_tasks:
+                try:
+                    with open(task_file, 'r') as f:
+                        task_data = json.load(f)
+                    
+                    space = task_data.get('space', 'unknown')
+                    if space in task_categories:
+                        task_categories[space].append(task_file)
+                    else:
+                        task_categories['unknown'].append(task_file)
+                except:
+                    task_categories['unknown'].append(task_file)
+            
+            # Redistribute based on load balancing
+            self.redistribute_by_priority(task_categories)
+            
+        except Exception as e:
+            print(f"❌ Task redistribution error: {e}")
+    
+    def redistribute_by_priority(self, task_categories):
+        """Redistribute tasks based on priority and load balancing"""
+        # Create priority queues
+        priority_dirs = {
+            'high_priority': Path("/tmp/ecron_tasks/high_priority"),
+            'medium_priority': Path("/tmp/ecron_tasks/medium_priority"), 
+            'low_priority': Path("/tmp/ecron_tasks/low_priority")
+        }
+        
+        for dir_path in priority_dirs.values():
+            dir_path.mkdir(exist_ok=True)
+        
+        # Redistribute system tasks to high priority
+        for task_file in task_categories['s']:
+            dest = priority_dirs['high_priority'] / task_file.name
+            task_file.rename(dest)
+        
+        # Redistribute execution tasks to medium priority
+        for task_file in task_categories['e']:
+            dest = priority_dirs['medium_priority'] / task_file.name
+            task_file.rename(dest)
+        
+        # Redistribute user tasks to low priority
+        for task_file in task_categories['u']:
+            dest = priority_dirs['low_priority'] / task_file.name
+            task_file.rename(dest)
+        
+        # Handle unknown tasks
+        for task_file in task_categories['unknown']:
+            dest = priority_dirs['low_priority'] / task_file.name
+            task_file.rename(dest)
+        
+        print(f"📋 Redistributed tasks: {len(task_categories['s'])} high, {len(task_categories['e'])} medium, {len(task_categories['u'])} low priority")
     
     def coordinate_memory_compression(self, space):
         """Coordinate memory compression"""
         print(f"🗜️ Coordinating memory compression for space: {space}")
-        # Placeholder for compression coordination
+        
+        try:
+            space_path = Path(f"spaces/{space}")
+            if not space_path.exists():
+                print(f"⚠️ Space {space} does not exist")
+                return
+            
+            # Analyze memory usage
+            total_files = list(space_path.rglob("*"))
+            file_count = len([f for f in total_files if f.is_file()])
+            
+            if file_count < 50:
+                print(f"📊 Space {space} has {file_count} files, compression not needed")
+                return
+            
+            print(f"🗜️ Compressing {file_count} files in space {space}")
+            
+            # Implement compression strategies
+            self.compress_by_age(space_path)
+            self.compress_by_similarity(space_path)
+            self.archive_old_content(space_path)
+            
+            print(f"✅ Memory compression completed for space {space}")
+            
+        except Exception as e:
+            print(f"❌ Memory compression error: {e}")
+    
+    def compress_by_age(self, space_path):
+        """Compress files by age"""
+        import time
+        current_time = time.time()
+        old_threshold = 7 * 24 * 3600  # 7 days
+        
+        old_files = []
+        for file_path in space_path.rglob("*"):
+            if file_path.is_file():
+                age = current_time - file_path.stat().st_mtime
+                if age > old_threshold:
+                    old_files.append(file_path)
+        
+        if old_files:
+            archive_dir = space_path / "archived"
+            archive_dir.mkdir(exist_ok=True)
+            
+            for old_file in old_files:
+                archive_path = archive_dir / old_file.name
+                old_file.rename(archive_path)
+            
+            print(f"📦 Archived {len(old_files)} old files")
+    
+    def compress_by_similarity(self, space_path):
+        """Compress similar files together"""
+        # Group files by size similarity (simple heuristic)
+        size_groups = {}
+        
+        for file_path in space_path.glob("*"):
+            if file_path.is_file():
+                size = file_path.stat().st_size
+                size_bucket = size // 1024  # Group by KB
+                
+                if size_bucket not in size_groups:
+                    size_groups[size_bucket] = []
+                size_groups[size_bucket].append(file_path)
+        
+        # Compress groups with many similar-sized files
+        for size_bucket, files in size_groups.items():
+            if len(files) > 5:
+                similar_dir = space_path / f"similar_size_{size_bucket}kb"
+                similar_dir.mkdir(exist_ok=True)
+                
+                for file_path in files:
+                    dest_path = similar_dir / file_path.name
+                    if not dest_path.exists():
+                        file_path.rename(dest_path)
+                
+                print(f"📂 Grouped {len(files)} similar files (~{size_bucket}KB each)")
+    
+    def archive_old_content(self, space_path):
+        """Archive old content to reduce active memory"""
+        archive_path = space_path / "archive"
+        archive_path.mkdir(exist_ok=True)
+        
+        # Move files older than 30 days to archive
+        import time
+        current_time = time.time()
+        archive_threshold = 30 * 24 * 3600  # 30 days
+        
+        archived_count = 0
+        for file_path in space_path.glob("*"):
+            if file_path.is_file():
+                age = current_time - file_path.stat().st_mtime
+                if age > archive_threshold:
+                    archive_file = archive_path / file_path.name
+                    if not archive_file.exists():
+                        file_path.rename(archive_file)
+                        archived_count += 1
+        
+        if archived_count > 0:
+            print(f"🗃️ Archived {archived_count} old files")
+    
+    def coordinate_memory_compression(self, space):
+        """Coordinate memory compression"""
+        print(f"🗜️ Coordinating memory compression for space: {space}")
+        # Previous implementation moved up
     
     def coordinate_task_processing(self):
         """Coordinate task processing"""

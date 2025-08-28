@@ -205,12 +205,57 @@ class EcronTaskDaemon:
         try:
             print(f"📡 Sending to CogServer: {action}({expr})")
             
-            # TODO: Implement actual CogServer connection
-            # For now, simulate the connection
-            print(f"🧠 CogServer response: processed {action}")
+            # Try to connect to CogServer via telnet
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(5)  # 5 second timeout
             
+            try:
+                sock.connect((self.cog_host, self.cog_port))
+                
+                # Send scheme command to CogServer
+                command = f"(cog-evaluate! (ParseNode \"{action}\" (ConceptNode \"{expr}\")))\n"
+                sock.send(command.encode('utf-8'))
+                
+                # Read response
+                response = sock.recv(1024).decode('utf-8')
+                print(f"🧠 CogServer response: {response.strip()}")
+                
+                sock.close()
+                return True
+                
+            except socket.error as se:
+                # CogServer not available, fall back to file-based communication
+                print(f"⚠️ CogServer not available ({se}), using file-based fallback")
+                return self.send_to_cogserver_file(expr, action)
+                
         except Exception as e:
             print(f"❌ CogServer connection error: {e}")
+            return False
+    
+    def send_to_cogserver_file(self, expr, action):
+        """Fallback: Send command via file-based interface"""
+        try:
+            # Create OpenCog command file
+            cog_commands_dir = Path("/tmp/cogserver_commands")
+            cog_commands_dir.mkdir(exist_ok=True)
+            
+            command_data = {
+                "action": action,
+                "expression": expr,
+                "timestamp": time.time(),
+                "source": "ecron-task-daemon"
+            }
+            
+            command_file = cog_commands_dir / f"cmd_{int(time.time())}_{action}.json"
+            with open(command_file, 'w') as f:
+                json.dump(command_data, f, indent=2)
+                
+            print(f"📁 Command queued for CogServer: {command_file}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ File-based CogServer communication error: {e}")
+            return False
             
     def stop(self):
         """Stop the daemon"""
